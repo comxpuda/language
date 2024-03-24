@@ -459,7 +459,7 @@ function apply_op(op,a,b){
 
 function make_lambda(env,exp) {
     if (exp.name) {                    
-        env = env.extend();            
+        // env = env.extend();            
         env.def(exp.name, lambda);
     }    
     function lambda() {
@@ -492,16 +492,21 @@ globalEnv.def("fibJS", function fibJS(n){
     var t1 = Date.now();
     var ret = fn();
     var t2 = Date.now();
-    println("Time: " + (t2 - t1) + "ms");
+    console.log("Time: " + (t2 - t1) + "ms");
     return ret;
   });
 
 // Test
-// var code = "lambda sum (x, y) x + y; print(sum(2, 3));";
-// var code = "let (x = 2, y = 3, z = x + y) print(x + y + z);";
-// var code = "let (x = 2, y = x + 1, z = x + y) println(x + y + z);"
-var code = " let (x = 10) { let (x = x * 2, y = x * x) { println(x); println(y); }; println(x);};"
+var code = `
+λ fib(n) if n < 2 then n else fib(n - 1) + fib(n - 2);
 
+print("fib(30): ");
+time( λ() println(fib(30)) );
+print("fibJS(30): ");
+time( λ() println(fibJS(30)) );
+
+println("---");
+`
 var input = InputStream(code);
 var tokenStream = TokenStream(input)
 
