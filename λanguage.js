@@ -386,6 +386,7 @@ Environment.prototype = {
 }
 
 function evaluate(exp,env,callback) {
+    GUARD(evaluate, arguments);
     switch (exp.type) {
         case "num":
         case "str":
@@ -397,9 +398,11 @@ function evaluate(exp,env,callback) {
             return;
         case "let":
                 (function loop(env, i){
+                    GUARD(loop, arguments);
                     if (i < exp.vars.length) {
                         var v = exp.vars[i];
-                        if (v.def) evaluate(v.def, env, function(value){
+                        if (v.def) evaluate(v.def, env, function CC(value){
+                            GUARD(CC, arguments);
                             var scope = env.extend();
                             scope.def(v.name, value);
                             loop(scope, i + 1);
@@ -416,13 +419,16 @@ function evaluate(exp,env,callback) {
         case "assign":
             if (exp.left.type != "var")
                 throw new Error("Cannot assign to " + JSON.stringify(exp.left));
-            evaluate(exp.right,env,function(right){
+            evaluate(exp.right,env,function CC(right){
+                GUARD(CC, arguments);
                 callback(env.set(exp.left.value,right));
             });
             return;
         case "binary":
-            evaluate(exp.left,env,function(left){
-                evaluate(exp.right,env,function(right){
+            evaluate(exp.left,env,function CC(left){
+                GUARD(CC, arguments);
+                evaluate(exp.right,env,function CC(right){
+                    GUARD(CC, arguments);
                     callback(apply_op(exp.operator,left,right));
                 })
             });
@@ -431,7 +437,8 @@ function evaluate(exp,env,callback) {
             callback(make_lambda(env,exp));
             return;
         case "if":
-            evaluate(exp.cond,env,function(cond){
+            evaluate(exp.cond,env,function CC(cond){
+                GUARD(CC, arguments);
                 if (cond !== false) evaluate(exp.then, env, callback);
                 else if (exp.else) evaluate(exp.else, env, callback);
                 else callback(false);
@@ -439,7 +446,9 @@ function evaluate(exp,env,callback) {
             return;
         case "prog":
             (function loop(last, i){
-                if (i < exp.prog.length) evaluate(exp.prog[i], env, function(val){
+                GUARD(loop, arguments);
+                if (i < exp.prog.length) evaluate(exp.prog[i], env, function CC(val){
+                    GUARD(CC, arguments);
                     loop(val, i + 1);
                 }); else {
                     callback(last);
@@ -447,9 +456,12 @@ function evaluate(exp,env,callback) {
             })(false, 0);
             return;
         case "call":
-            evaluate(exp.func, env, function(func){
+            evaluate(exp.func, env, function CC(func){
+                GUARD(CC, arguments);
                 (function loop(args, i){
-                    if (i < exp.args.length) evaluate(exp.args[i], env, function(arg){
+                    GUARD(loop, arguments);
+                    if (i < exp.args.length) evaluate(exp.args[i], env, function CC(arg){
+                        GUARD(CC, arguments);
                         args[i + 1] = arg;
                         loop(args, i + 1);
                     }); else {
@@ -498,6 +510,7 @@ function make_lambda(env,exp) {
         env.def(exp.name, lambda);
     }    
     function lambda(callback) {
+        GUARD(lambda, arguments);
         var names = exp.vars;
         var scope = env.extend();
         for (var i = 0; i < names.length; ++i)
@@ -507,6 +520,26 @@ function make_lambda(env,exp) {
 
     };
     return lambda;
+}
+
+var STACKLEN;
+function GUARD(f, args) {
+    if (--STACKLEN < 0) throw new Continuation(f, args);
+}
+function Continuation(f, args) {
+    this.f = f;
+    this.args = args;
+}
+
+function Execute(f, args) {
+    while (true) try {
+        STACKLEN = 200;
+        return f.apply(null, args);
+    } catch(ex) {
+        if (ex instanceof Continuation)
+            f = ex.f, args = ex.args;
+        else throw ex;
+    }
 }
 
 // Primitive functions
@@ -537,8 +570,7 @@ globalEnv.def("time", function(fn){
 // Test
 var code = `
 λ fib(n) if n < 2 then n else fib(n - 1) + fib(n - 2);
-time( λ() println(fib(40)) );
-
+println(fib(30));
 `
 // var code = "lambda sum(x, y) x + y; print(sum(2, 3));";
 
@@ -547,6 +579,10 @@ var tokenStream = TokenStream(input)
 
 var ast = parse(tokenStream)
 var env = globalEnv.extend()
-evaluate(ast, env,function(res){
-    console.log(res)
-});
+// evaluate(ast, env,function(res){
+//     console.log(res)
+// });
+
+Execute(evaluate, [ ast, env, function(result){
+    console.log("*** Result:", result);
+}]);
